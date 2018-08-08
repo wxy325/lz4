@@ -33,3 +33,5 @@ bin/
 # Windows / Msys
 nul
 ld.exe*
+cmake-build-debug
+.idea

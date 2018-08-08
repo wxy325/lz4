@@ -44,16 +44,16 @@
 #include <assert.h>      /* assert */
 
 #include "datagen.h"     /* RDG_genBuffer */
-#include "xxhash.h"
+#include "../lib/xxhash.h"
 
 
-#include "lz4.h"
+#include "../lib/lz4.h"
 #define COMPRESSOR0 LZ4_compress_local
 static int LZ4_compress_local(const char* src, char* dst, int srcSize, int dstSize, int clevel) {
   int const acceleration = (clevel < 0) ? -clevel + 1 : 1;
   return LZ4_compress_fast(src, dst, srcSize, dstSize, acceleration);
 }
-#include "lz4hc.h"
+#include "../lib/lz4hc.h"
 #define COMPRESSOR1 LZ4_compress_HC
 #define DEFAULTCOMPRESSOR COMPRESSOR0
 #define LZ4_isError(errcode) (errcode==0)

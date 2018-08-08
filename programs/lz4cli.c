@@ -41,8 +41,8 @@
 #include <string.h>   /* strcmp, strlen */
 #include "bench.h"    /* BMK_benchFile, BMK_SetNbIterations, BMK_SetBlocksize, BMK_SetPause */
 #include "lz4io.h"    /* LZ4IO_compressFilename, LZ4IO_decompressFilename, LZ4IO_compressMultipleFilenames */
-#include "lz4hc.h"    /* LZ4HC_CLEVEL_MAX */
-#include "lz4.h"      /* LZ4_VERSION_STRING */
+#include "../lib/lz4hc.h"    /* LZ4HC_CLEVEL_MAX */
+#include "../lib/lz4.h"      /* LZ4_VERSION_STRING */
 
 
 /*****************************
