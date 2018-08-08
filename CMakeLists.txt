@@ -21,6 +21,6 @@ set(SOURCE_FILES
         programs/lz4io.c
         programs/lz4io.h
         programs/platform.h
-        programs/util.h)
+        programs/util.h lib/utf8Util.h lib/utf8Util.c)
 
 add_executable(lz4_utf8 ${SOURCE_FILES})
