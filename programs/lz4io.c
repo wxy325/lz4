@@ -58,7 +58,7 @@
 #include "../lib/lz4hc.h"     /* still required for legacy format */
 #define LZ4F_STATIC_LINKING_ONLY
 #include "../lib/lz4frame.h"
-
+#include "../lib/utf8Util.h"
 
 /*****************************
 *  Constants
@@ -539,6 +539,8 @@ static int LZ4IO_compressFilename_extRess(cRess_t ress, const char* srcFileName,
     size_t readSize;
     LZ4F_compressionContext_t ctx = ress.ctx;   /* just a pointer */
     LZ4F_preferences_t prefs;
+    size_t tempIndex = 0;
+
 
     /* Init */
     srcFile = LZ4IO_openSrcFile(srcFileName);
@@ -565,11 +567,23 @@ static int LZ4IO_compressFilename_extRess(cRess_t ress, const char* srcFileName,
 
     /* read first block */
     readSize  = fread(srcBuffer, (size_t)1, blockSize, srcFile);
+    bool singleBlock = readSize < blockSize;
+    size_t actualUtf8End = findMaxUtf8Pos(srcBuffer, readSize);
+
+    size_t originalReadSize = readSize;
+    if (actualUtf8End < readSize) {
+        size_t delta = readSize - actualUtf8End;
+        fseek(srcFile, -delta, 1);
+        singleBlock = false;
+        readSize = actualUtf8End;
+    }
+
+
     if (ferror(srcFile)) EXM_THROW(30, "Error reading %s ", srcFileName);
     filesize += readSize;
 
     /* single-block file */
-    if (readSize < blockSize) {
+    if (singleBlock) {
         /* Compress in single pass */
         size_t cSize = LZ4F_compressFrame_usingCDict(ctx, dstBuffer, dstBufferSize, srcBuffer, readSize, ress.cdict, &prefs);
         if (LZ4F_isError(cSize)) EXM_THROW(31, "Compression failed : %s", LZ4F_getErrorName(cSize));
@@ -609,6 +623,16 @@ static int LZ4IO_compressFilename_extRess(cRess_t ress, const char* srcFileName,
 
             /* Read next block */
             readSize  = fread(srcBuffer, (size_t)1, (size_t)blockSize, srcFile);
+
+
+            originalReadSize = readSize;
+            actualUtf8End = findMaxUtf8Pos(srcBuffer, readSize);
+            if (actualUtf8End < readSize) {
+                size_t delta = readSize - actualUtf8End;
+                fseek(srcFile, -delta, 1);
+                readSize = actualUtf8End;
+            }
+
             filesize += readSize;
         }
         if (ferror(srcFile)) EXM_THROW(37, "Error reading %s ", srcFileName);

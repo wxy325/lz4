@@ -2,7 +2,7 @@
 
 
 
-unsigned utf8Length(char initChar) {
+size_t utf8Length(char initChar) {
     // Invalid 0 byte
     // 0zzzzzzz  1 byte
     // 110yyyyy  2 byte2
@@ -21,4 +21,27 @@ unsigned utf8Length(char initChar) {
     } else {
         return 0;
     }
+}
+
+size_t findMaxUtf8Pos(char* buffer, size_t bufferSize) {
+    char* lastPos = buffer + bufferSize - 1;
+
+    while (utf8Length(*lastPos) == 0) {
+        --lastPos;
+    }
+
+    size_t lastLength = utf8Length(*lastPos);
+
+    size_t exceptLastPos = lastPos - buffer;
+    size_t includeLastPos = exceptLastPos + lastLength;
+
+    if (includeLastPos <= bufferSize) {
+        return includeLastPos;
+    } else {
+        return exceptLastPos;
+    }
+
+
+
+
 }
