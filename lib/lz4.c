@@ -168,6 +168,8 @@
 #include <string.h>   /* memset, memcpy */
 #define MEM_INIT(p,v,s)   memset((p),(v),(s))
 
+#include "utf8Util.h"
+
 
 /*-************************************
 *  Basic Types
@@ -719,6 +721,7 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
     if (inputSize<LZ4_minLength) goto _last_literals;        /* Input too small, no compression (all literals) */
 
     /* First Byte */
+    // First Byte must be the init position of UTF-8
     LZ4_putPosition(ip, cctx->hashTable, tableType, base);
     ip++; forwardH = LZ4_hashPosition(ip, tableType);
 
@@ -729,6 +732,7 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
 
         /* Find a match */
         if (tableType == byPtr) {
+            // TODO handle UTF-8 for this part
             const BYTE* forwardIp = ip;
             unsigned step = 1;
             unsigned searchMatchNb = acceleration << LZ4_skipTrigger;
@@ -792,6 +796,11 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
                     match = base + matchIndex;
                 }
                 forwardH = LZ4_hashPosition(forwardIp, tableType);
+
+                if (utf8Length(*ip) == 0 || utf8Length(*match) == 0) {
+                    continue;
+                }
+                // if current is not an utf-8 initial position, we do not put it into hash table
                 LZ4_putIndexOnHash(current, h, cctx->hashTable, tableType);
 
                 if ((dictIssue == dictSmall) && (matchIndex < prefixIdxLimit)) continue;    /* match outside of valid area */
@@ -799,7 +808,14 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
                 if ((tableType != byU16) && (matchIndex+MAX_DISTANCE < current)) continue;  /* too far */
                 if (tableType == byU16) assert((current - matchIndex) <= MAX_DISTANCE);     /* too_far presumed impossible with byU16 */
 
-                if (LZ4_read32(match) == LZ4_read32(ip)) {
+                bool fourByteMatch = LZ4_read32(match) == LZ4_read32(ip);
+                if (fourByteMatch) {
+                    if (!utf8MatchAtLeast((char*)match, (char*)ip, 4)) {
+                        continue;
+                    }
+                }
+
+                if (fourByteMatch) {
                     if (maybe_extMem) offset = current - matchIndex;
                     break;   /* match found */
                 }
@@ -809,6 +825,8 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
 
         /* Catch up */
         while (((ip>anchor) & (match > lowLimit)) && (unlikely(ip[-1]==match[-1]))) { ip--; match--; }
+
+        while (utf8Length(*ip) == 0 || utf8Length(*match) == 0) {ip++; match++;}
 
         /* Encode Literals */
         {   unsigned const litLength = (unsigned)(ip - anchor);
@@ -868,6 +886,7 @@ _next_match:
 
             if ( (dictDirective==usingExtDict || dictDirective==usingDictCtx)
               && (lowLimit==dictionary) /* match within extDict */ ) {
+                //TODO handle this part
                 const BYTE* limit = ip + (dictEnd-match);
                 assert(dictEnd > match);
                 if (limit > matchlimit) limit = matchlimit;
@@ -881,6 +900,13 @@ _next_match:
                 DEBUGLOG(6, "             with matchLength=%u starting in extDict", matchCode+MINMATCH);
             } else {
                 matchCode = LZ4_count(ip+MINMATCH, match+MINMATCH, matchlimit);
+
+                // Make Sure Match Length is in complete UTF-8 Code Point
+                unsigned utf8MatchCode = utf8MatchLimit(ip, match, MINMATCH + matchCode);
+                if (utf8MatchCode < matchCode) {
+                    matchCode = utf8MatchCode;
+                }
+
                 ip += MINMATCH + matchCode;
                 DEBUGLOG(6, "             with matchLength=%u", matchCode+MINMATCH);
             }
@@ -917,11 +943,13 @@ _next_match:
         if (ip >= mflimitPlusOne) break;
 
         /* Fill table */
-        LZ4_putPosition(ip-2, cctx->hashTable, tableType, base);
+        if (utf8Length(*(ip - 2)) != 0) {
+            LZ4_putPosition(ip-2, cctx->hashTable, tableType, base);
+        }
 
         /* Test next position */
         if (tableType == byPtr) {
-
+            // TODO handle this part
             match = LZ4_getPosition(ip, cctx->hashTable, tableType, base);
             LZ4_putPosition(ip, cctx->hashTable, tableType, base);
             if ( (match+MAX_DISTANCE >= ip)
@@ -958,9 +986,18 @@ _next_match:
             }
             LZ4_putIndexOnHash(current, h, cctx->hashTable, tableType);
             assert(matchIndex < current);
+
+            bool fourMatch = LZ4_read32(match) == LZ4_read32(ip);
+            if (fourMatch) {
+                if (utf8Length(*ip) == 0 || utf8Length(*match) == 0 || !utf8MatchAtLeast((char*)match, (char*)ip, 4)) {
+                    fourMatch = false;
+                }
+            }
+
+
             if ( ((dictIssue==dictSmall) ? (matchIndex >= prefixIdxLimit) : 1)
               && ((tableType==byU16) ? 1 : (matchIndex+MAX_DISTANCE >= current))
-              && (LZ4_read32(match) == LZ4_read32(ip)) ) {
+              && (fourMatch)) {
                 token=op++;
                 *token=0;
                 if (maybe_extMem) offset = current - matchIndex;

@@ -38,8 +38,45 @@ size_t findMaxUtf8Pos(char* buffer, size_t bufferSize) {
     } else {
         return exceptLastPos;
     }
+}
+
+size_t utf8MatchCodePoint(char* a, char* b) {
+    size_t length = utf8Length(*a);
+    if (!length) {
+        return length;
+    }
+    for (size_t i = 0; i < length; i++) {
+        if (a[i] != b[i]) {
+            return 0;
+        }
+    }
+    return length;
+}
+
+bool utf8MatchAtLeast(char* a, char* b, size_t bytes) {
+    size_t matchBytes = 0;
+    size_t currentMatchLength = 0;
+    while ((currentMatchLength = utf8MatchCodePoint(a, b)) != 0 && matchBytes < bytes) {
+        matchBytes += currentMatchLength;
+        a += currentMatchLength;
+        b += currentMatchLength;
+    }
+    return matchBytes >= bytes;
+}
 
 
+size_t utf8MatchLimit(char* a, char* b, size_t limit) {
+    size_t matchBytes = 0;
+    size_t currentMatchLength = 0;
 
-
+    while ((currentMatchLength = utf8MatchCodePoint(a, b)) != 0) {
+        size_t newMatchLength = matchBytes + currentMatchLength;
+        if (newMatchLength > limit) {
+            return matchBytes;
+        }
+        matchBytes = newMatchLength;
+        a += currentMatchLength;
+        b += currentMatchLength;
+    }
+    return matchBytes;
 }
