@@ -903,8 +903,8 @@ _next_match:
 
                 // Make Sure Match Length is in complete UTF-8 Code Point
                 unsigned utf8MatchCode = utf8MatchLimit(ip, match, MINMATCH + matchCode);
-                if (utf8MatchCode < matchCode) {
-                    matchCode = utf8MatchCode;
+                if (utf8MatchCode < matchCode + MINMATCH) {
+                    matchCode = utf8MatchCode - MINMATCH;
                 }
 
                 ip += MINMATCH + matchCode;
